@@ -1,37 +1,70 @@
 .dashboard-container {
-    padding: 2rem;
-    max-width: 1200px;
-    margin: 0 auto;
-  }
-  
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh; 
+  background: #f5f5f5;
+  font-family: 'Poppins', sans-serif;
+  overflow: hidden; 
+}
+
+.grid-container {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr); 
+  gap: 20px;
+  width: 80%;
+  max-width: 800px;
+}
+
+
+.dashboard-card {
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  text-decoration: none;
+  color: black;
+  display: flex;
+  flex-direction: column;
+  height: 160px;
+}
+
+.dashboard-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+}
+
+
+.card-header {
+  text-align: center;
+  padding: 12px;
+  font-size: 18px;
+  font-weight: bold;
+  color: white;
+}
+
+.card-header.zoning { background: #007bff; }  
+.card-header.property { background: #28a745; } 
+.card-header.planning { background: #ff9800; } 
+.card-header.market { background: #9c27b0; }   
+
+
+.card-content {
+  padding: 20px;
+  font-size: 14px;
+  color: #333;
+  flex-grow: 1;
+}
+
+.card-content.zoning { background: #cce5ff; }   
+.card-content.property { background: #d4edda; } 
+.card-content.planning { background: #ffebcc; }
+.card-content.market { background: #f3e5f5; }  
+
+
+@media (max-width: 768px) {
   .grid-container {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 2rem;
-    margin-top: 2rem;
+    grid-template-columns: 1fr; 
+    width: 90%;
   }
-  
-  .dashboard-card {
-    padding: 2rem;
-    border-radius: 8px;
-    background: #fff;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    text-decoration: none;
-    color: #333;
-    transition: transform 0.2s ease;
-  }
-  
-  .dashboard-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-  }
-  
-  .dashboard-card h2 {
-    margin-bottom: 1rem;
-    color: #2c3e50;
-  }
-  
-  .dashboard-card p {
-    color: #7f8c8d;
-    line-height: 1.6;
-  }
+}
