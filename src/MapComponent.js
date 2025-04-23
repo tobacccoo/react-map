@@ -3,6 +3,8 @@ import ReactMapGL, { Marker, Source, Layer } from 'react-map-gl/mapbox';
 import { area } from '@turf/area';
 import { polygon, lineString } from '@turf/helpers';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls, Line } from '@react-three/drei';
 
 // Coordinate validation utilities
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -18,6 +20,7 @@ const validateCoordinate = (coord) => {
   };
 };
       
+
 const zoningAreas = [
   {
     id: "zone1",
@@ -92,27 +95,99 @@ const MapComponent = ({zoningReport, propertyDetails}) => {
   const [searchQuery, setSearchQuery] = useState('');
 const [searchResults, setSearchResults] = useState([]);
 const [showSuggestions, setShowSuggestions] = useState(false);
+const [buildingHeight, setBuildingHeight] = useState(10);
 
-
-    
-const handleSearch = async (query) => {
-  if (!query || query.length < 3) {
-    setSearchResults([]);
-    return;
-  }
-
-  try {
-    const response = await fetch(
-      `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${"pk.eyJ1Ijoic2FyaW1zcyIsImEiOiJjbThvNnRmNHUwODBrMnByMHpsMHMzZGE0In0.eE5PcxlDMTLsfuL6XhupHQ"}&country=IN&proximity=72.8727,19.36017`
-    );
-    const data = await response.json();
-    setSearchResults(data.features || []);
-    setShowSuggestions(true);
-  } catch (error) {
-    console.error('Geocoding error:', error);
-    setSearchResults([]);
-  }
+const createExtrusionGeoJSON = (coordinates) => {
+  return {
+    type: 'Feature',
+    geometry: {
+      type: 'Polygon',
+      coordinates: [coordinates]
+    },
+    properties: {
+      height: buildingHeight
+    }
+  };
 };
+
+const generateBuildingGeometry = (coordinates, height = buildingHeight) => {
+  if (!coordinates || coordinates.length < 3) return null;
+  
+  // Convert coordinates to Three.js vertices
+  const vertices = coordinates.map(coord => [
+    coord[0], // longitude
+    coord[1], // latitude
+    0 // base elevation
+  ]);
+  
+  // Close the polygon by repeating the first point
+  vertices.push([...vertices[0]]);
+  
+  // Create walls
+  const walls = [];
+  for (let i = 0; i < vertices.length - 1; i++) {
+    const p1 = vertices[i];
+    const p2 = vertices[i+1];
+    
+    walls.push(
+      // Bottom edge
+      [p1[0], p1[1], p1[2]],
+      [p2[0], p2[1], p2[2]],
+      // Top edge
+      [p2[0], p2[1], height],
+      [p1[0], p1[1], height]
+    );
+  }
+  
+  // Create roof (flat)
+  const roof = vertices.map(p => [p[0], p[1], height]);
+  
+  return { vertices, walls, roof };
+};
+
+// Component for rendering a 3D building
+const Building = ({ coordinates, height, color = '#cccccc' }) => {
+  const geometry = generateBuildingGeometry(coordinates, height);
+  
+  if (!geometry) return null;
+  
+  return (
+    <group>
+      {/* Walls */}
+      {geometry.walls.map((wall, i) => (
+        <Line
+          key={`wall-${i}`}
+          points={wall}
+          color={color}
+          lineWidth={2}
+        />
+      ))}
+      
+      {/* Roof */}
+      <Line
+        points={geometry.roof}
+        color={color}
+        lineWidth={2}
+        closed
+      />
+      
+      {/* Vertical edges */}
+      {geometry.vertices.map((vertex, i) => (
+        <Line
+          key={`edge-${i}`}
+          points={[
+            [vertex[0], vertex[1], 0],
+            [vertex[0], vertex[1], height]
+          ]}
+          color={color}
+          lineWidth={2}
+        />
+      ))}
+    </group>
+  )
+}
+
+
 
   const savePolygon = () => {
     if (points.length < 3) {
@@ -132,6 +207,7 @@ const handleSearch = async (query) => {
     setPoints([]);
     setCalculatedArea(null);
   };
+
 
   const handleMarkerDrag = useCallback((index, lngLat) => {
     if (!lngLat) return;
@@ -549,7 +625,49 @@ const handleSearch = async (query) => {
     </ul>
   )}
 </div>
-
+{!zoningReport && !propertyDetails && points.length >= 3 && (
+  <div style={{
+    position: 'absolute',
+    bottom: '200px',
+    left: 20,
+    zIndex: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    padding: '16px',
+    borderRadius: '8px',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+    maxWidth: '320px',
+    minWidth: '280px'
+  }}>
+    <div style={{ marginBottom: '16px' }}>
+      <h3 style={{ 
+        margin: '0 0 8px 0', 
+        fontSize: '14px',
+        color: '#666'
+      }}>
+        BUILDING HEIGHT
+      </h3>
+      <input
+        type="range"
+        min="1"
+        max="100"
+        value={buildingHeight}
+        onChange={(e) => setBuildingHeight(parseInt(e.target.value))}
+        style={{ width: '100%' }}
+      />
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between',
+        fontSize: '12px',
+        color: '#6c757d'
+      }}>
+        <span>1m</span>
+        <span>{buildingHeight}m</span>
+        <span>100m</span>
+      </div>
+    </div>
+  
+  </div>
+)}
      
       <div style={{
         position: 'absolute',
@@ -779,60 +897,59 @@ const handleSearch = async (query) => {
         width="100%"
         height="100%"
         mapboxAccessToken="pk.eyJ1Ijoic2FyaW1zcyIsImEiOiJjbThvNnRmNHUwODBrMnByMHpsMHMzZGE0In0.eE5PcxlDMTLsfuL6XhupHQ"
-        mapStyle="mapbox://styles/mapbox/satellite-streets-v11"
+        mapStyle="mapbox://styles/mapbox/satellite-streets-v12"
         onMove={(evt) => setViewport(evt.viewState)}
         onClick={handleMapClick}
         interactiveLayerIds={['building', 'building-footprint', 'building-outline']}
       >
         {/* Render saved polygons */}
-        {drawnPolygons.map((polygon) => (
+        {points.length >= 3 && (
           <Source
-            key={polygon.id}
             type="geojson"
-            data={{
-              type: "Feature",
-              geometry: {
-                type: "Polygon",
-                coordinates: [polygon.coordinates]
-              }
-            }}
+            data={createExtrusionGeoJSON([
+              ...points.map(p => [p.longitude, p.latitude]),
+              [points[0].longitude, points[0].latitude]
+            ])}
           >
             <Layer
-              type="fill"
+              id="current-building"
+              type="fill-extrusion"
               paint={{
-                "fill-color": selectedPolygon?.id === polygon.id ? "#00f" : "#f00",
-                "fill-opacity": 0.4
+                'fill-extrusion-color': '#ff4757',
+                'fill-extrusion-height': buildingHeight,
+                'fill-extrusion-base': 0,
+                'fill-extrusion-opacity': 0.8
+              }}
+              
+            />
+          </Source>
+        )}
+
+
+
+        {/* Saved polygons as buildings */}
+        {drawnPolygons.map((polygon) => (
+          <Source
+            key={`building-${polygon.id}`}
+            type="geojson"
+            data={createExtrusionGeoJSON(polygon.coordinates)}
+          >
+            <Layer
+              id={`saved-building-${polygon.id}`}
+              type="fill-extrusion"
+              paint={{
+                'fill-extrusion-color': '#3366ff',
+                'fill-extrusion-height': buildingHeight,
+                'fill-extrusion-base': 0,
+                'fill-extrusion-opacity': 0.8
               }}
             />
           </Source>
         ))}
 
-        {/* Render current working polygon */}
-        {points.length >= 3 && (
-          <Source
-            type="geojson"
-            data={{
-              type: "Feature",
-              geometry: {
-                type: "Polygon",
-                coordinates: [
-                  [
-                    ...points.map(p => [p.longitude, p.latitude]),
-                    [points[0].longitude, points[0].latitude]
-                  ]
-                ]
-              }
-            }}
-          >
-            <Layer
-              type="fill"
-              paint={{
-                "fill-color": "#f00",
-                "fill-opacity": 0.4
-              }}
-            />
-          </Source>
-        )}
+
+
+
 
         {/* Connection Lines */}
         {lineData && (
@@ -917,8 +1034,54 @@ const handleSearch = async (query) => {
                 {index + 1}
               </div>
             </div>
-          </Marker>
+         </Marker>
         ))}
+         {points.length >= 3 && (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            pointerEvents: 'none'
+          }}>
+            <Canvas
+              camera={{
+                position: [0, 0, 1000],
+                fov: 75,
+                near: 0.1,
+                far: 10000
+              }}
+              style={{ pointerEvents: 'none' }}
+            >
+              <ambientLight intensity={0.5} />
+              <pointLight position={[10, 10, 10]} />
+              
+              {/* Current building being drawn */}
+              <Building 
+                coordinates={points.map(p => [p.longitude, p.latitude])}
+                height={buildingHeight}
+                color="#ff4757"
+              />
+              
+              {/* Saved buildings */}
+              {drawnPolygons.map(polygon => (
+                <Building
+                  key={polygon.id}
+                  coordinates={polygon.coordinates}
+                  height={buildingHeight}
+                  color="#00f"
+                />
+              ))}
+              
+              <OrbitControls 
+                enableZoom={false}
+                enablePan={false}
+                enableRotate={false}
+              />
+            </Canvas>
+          </div>
+        )}
       </ReactMapGL>
 
       {/* Global Styles */}
